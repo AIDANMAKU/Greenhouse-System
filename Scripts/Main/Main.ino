@@ -7,13 +7,20 @@
 //Defining pins and Variables
 #define DHT_TYPE DHT11
 const int DHT_PIN = 2;
-const int moistureSensor = A0;
 const int RELAY_PIN = 3;
+const int WATER_SENSOR_PIN = 5;  // Float switch pin
+const int moistureSensor = A0;
 const unsigned long BUTTON_CODE = 0x202F1329; //Put Activation code here 
 
 const float maximumMoistureLevel = 156;
 float currentMoistureLevel;
 float moisture;
+String state = ""; 
+
+
+
+bool relayState = false;
+bool waterOK = false;
 
 const int RECV_PIN = 4;  // IR receiver data pin connected to D2
 IRrecv irrecv(RECV_PIN);
@@ -71,6 +78,9 @@ void setup(){
   pinMode(moistureSensor, INPUT);
   pinMode( RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
+  pinMode(WATER_SENSOR_PIN, INPUT_PULLUP); // Internal pull-up, active LOW
+
+
 
   // Starting up Essential Services
   Serial.begin(9600);
@@ -104,22 +114,36 @@ void setup(){
 }
 void waterplant(){
 
-  //Activate Relay
-  digitalWrite(RELAY_PIN, HIGH);
+    if (waterOK) {
+      relayState = !relayState;
+      //digitalWrite(RELAY_PIN, relayState ? HIGH : LOW);
+        //Activate Relay
+      digitalWrite(RELAY_PIN, HIGH);
 
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Watering.");
-  delay(1000);
-  lcd.setCursor(0,0);
-  lcd.print("Watering..");
-  delay(1000);
-  lcd.setCursor(0,0);
-  lcd.print("Watering...");
-  delay(2000);
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Watering.");
+      delay(1000);
+      lcd.setCursor(0,0);
+      lcd.print("Watering..");
+      delay(1000);
+      lcd.setCursor(0,0);
+      lcd.print("Watering...");
+      delay(2000);
 
-  digitalWrite(RELAY_PIN, LOW);
-  lcd.clear();
+      digitalWrite(RELAY_PIN, LOW);
+      lcd.clear();
+        //Serial.println(relayState ? "Relay ON" : "Relay OFF");
+      } else {
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("Cannot water...");
+        lcd.setCursor(0,1);
+        lcd.print("Water level low!");
+        delay(3500);
+        lcd.clear();
+      }
+
 }
 
 void loop(){
@@ -129,6 +153,16 @@ void loop(){
   currentMoistureLevel = analogRead(moistureSensor);
   moisture = currentMoistureLevel / maximumMoistureLevel;
   
+  waterOK = digitalRead(WATER_SENSOR_PIN) == LOW; // LOW = water present
+
+  if(digitalRead(WATER_SENSOR_PIN) == LOW){
+    waterOK = true;
+    state = "F";
+  }
+  else{
+    waterOK = false;
+    state = "E";
+  }
 
   if( moisture <= 0.1){
     //  Execute if the Moisture is below 10%
@@ -160,10 +194,18 @@ void loop(){
     irrecv.resume();  // Receive the next value
   }
   //Refreshing the LCD input
+  
+  //Row 1
   lcd.setCursor(0,0);
   lcd.print("Moist:");
   lcd.print(round(moisture*100));
   lcd.print("%");
+  lcd.setCursor(11,0);
+  lcd.print("Lvl:");
+  lcd.print(state);
+
+
+  //Row 2 of LCD
   lcd.setCursor(8,1);
   lcd.print("Temp:");
   lcd.print(temp);
@@ -182,7 +224,9 @@ void loop(){
   Serial.print(" % |");
   Serial.print(" Moisture: ");
   Serial.print(moisture*100);
-  Serial.println("%");
+  Serial.print("% |");
+  Serial.print(" Water level: ");
+  Serial.println(state);
   delay(2000);
 
 }
